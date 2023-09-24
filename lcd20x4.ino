@@ -1,4 +1,53 @@
+#define CHARS 20
+#define ROWS 4
+#define LCD_ON_TIME 300 //seconds
+
 int busy =0;
+int backlightCounter = LCD_ON_TIME;
+int backlightValue = 255;
+bool backlightOnFlag = true;
+bool keepBacklightOn = false;
+
+void setKeepBacklightOn(bool bo){
+  keepBacklightOn = bo;
+  if(bo){
+    backlightCounter = LCD_ON_TIME;
+  }
+}
+
+bool isBacklightOn(){
+  return backlightValue > 0;
+}
+
+void backlight(bool on){
+  if(on){
+    if(backlightValue == 0){
+      backlightValue = 255;
+      backlightCounter = LCD_ON_TIME;
+    }    
+  }else{
+    backlightValue = 0;
+    lcd.clear();
+  }
+  lcd.setBacklight(backlightValue);
+}
+
+void checkBacklight(){
+  backlight(backlightOnFlag);
+}
+
+void autoLcdBacklightISR(){
+  if(backlightOnFlag){
+    if(backlightCounter <= 0) {
+      backlightOnFlag = false;
+      backlightCounter = 0;
+    }else{
+      if(!keepBacklightOn){
+        backlightCounter--;
+      }
+    }
+  }
+}
 
 void initLCD(){
   int error;
@@ -13,13 +62,11 @@ void initLCD(){
 
   if (error == 0) {
     Serial.println(": LCD found.");
-    lcd.begin(20, 4);  // initialize the lcd
-    lcd.setBacklight(255);
+    lcd.begin(CHARS, ROWS);  // initialize the lcd
+    backlight(true);
   } else {
     Serial.println(": LCD not found.");
   }  
-  
-  
 }
 
 void testLCD(){
@@ -27,7 +74,7 @@ void testLCD(){
   lcd.home();
   lcd.clear();
   lcd.print("Welcome");
-  delay(3000);
+                                                             delay(3000);
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("*** first line.");
@@ -56,7 +103,10 @@ void testLCD(){
 
 void clearLine(int row){
   lcd.setCursor(0,row);
-  lcd.print("                    ");
+  for(int n = 0; n < CHARS; n++) // 20 indicates symbols in line. For 2x16 LCD write - 16
+  {
+    lcd.print(" ");
+  }
   lcd.setCursor(0,row);
 }
 

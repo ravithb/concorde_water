@@ -1,29 +1,54 @@
 String lastLvl = "";
+String lastSprinklers = "";
+String lastPump = "";
+String lastInlet = "";
+String inletLine = "Inlet --";
+String pumpLine = "Pump --";
+String sprinklerLine = "Sprinklers --";
+String waterLevelLine = "W. Level  --";
 
-void inletValve(int status, int isFromTimer) {
-  String msg = "";
-  if(status==HIGH){
-    
+bool isPumpStarted(){
+  return (digitalRead(PUMP_SENSE)==HIGH);
+}
+
+void displayStatus(){
+  if(updateScreen){
+    lcdWrite(0, inletLine);
+    lcdWrite(1, pumpLine);
+    lcdWrite(2, sprinklerLine);
+    lcdWrite(3, waterLevelLine);
+    updateScreen = false;
+  }
+}
+
+void inletValve(int status, int isFromTimer) {  
+  if(preferences.getUInt(INLET_VALVE_ENABLED, 1)==0){
+    inletLine = "Inlet DISABLED";
+    status = LOW;
+    return;
+  }
+
+  digitalWrite(INLET_VALVE, status);
+  if(status==HIGH){    
     Serial.println("Turning inlet valve on");
-    msg = "Inlet OPEN";
+    inletLine = "Inlet OPEN";
     if(isFromTimer==1){
-      msg = "Inlet OPEN T";
+      inletLine = "Inlet OPEN T";
     }
   }else{
     status = LOW;
     Serial.println("Turning inlet valve off");
-    msg = "Inlet CLOSED";
+    inletLine = "Inlet CLOSED";
     if(isFromTimer==1){
-      msg = "Inlet CLOSED T";
+      inletLine = "Inlet CLOSED T";
     }
   }
-  lcdWrite(0, msg);
-  digitalWrite(INLET_VALVE, status);
+
 }
 
 
-bool isInletValve(int status){
-  return status == digitalRead(INLET_VALVE);
+bool isInletValveOpen(){
+  return HIGH == digitalRead(INLET_VALVE);
 }
 
 void ignition(int status){
@@ -47,57 +72,92 @@ void starterMotor(int status) {
 }
 
 void sprinklers(int status, int isFromTimer){
-  int line = 2;
+  if(preferences.getUInt("sprinklersEnabled", 1)==0){
+    sprinklerLine = "Sprinklers DISABLED";
+    status = LOW;
+    return;
+  }
+
+  digitalWrite(SPRINKLERS, status);
+
   if(status==HIGH){
     startPump();
     Serial.println("Turning sprinkler valve on");
-    lcdWrite(line, "Sprinklers OPEN");
+    sprinklerLine = "Sprinklers OPEN";
     if(isFromTimer==1){
-      lcdWrite(line, "Sprinklers OPEN T");
+      sprinklerLine = "Sprinklers OPEN T";
     }
   }else{
     status = LOW;
     stopPump();
     Serial.println("Turning sprinkler valve off");
-    lcdWrite(line, "Sprnklers CLOSED");
+    sprinklerLine = "Sprnklers CLOSED";
     if(isFromTimer==1){
-      lcdWrite(line, "Sprnklers CLOSED T");
+      sprinklerLine = "Sprnklers CLOSED T";
     }
   }
   
-  digitalWrite(SPRINKLERS, status);
 }
 
-bool isSprinklers(int status){
-  return status == digitalRead(SPRINKLERS);
+bool areSprinklersOn(){
+  return HIGH == digitalRead(SPRINKLERS);
 }
 
 void startPump(){
-  int line = 1;
-  lcdWrite(line,"Ignition ON");
+  if(preferences.getUInt(PUMP_ENABLED, 1)==0){
+    pumpLine = "Pump DISABLED";
+    starterMotor(LOW);
+    ignition(LOW);
+    displayStatus();
+    return;
+  }
+
+  pumpLine = "Ignition ON";
   ignition(HIGH);
-  delay(2000);
-  lcdWrite(line,"Starting Pump");
-  starterMotor(HIGH);
-  delay(3000);
-  starterMotor(LOW);
-  lcdWrite(line,"Pump ON");
+  displayStatus();
+
+  int retries = preferences.getUInt(STARTER_RETRY, 3);
+  for(int i=0;i<retries;i++){
+    delay(preferences.getUInt(STARTER_DELAY, 2)*1000);
+    pumpLine = "Starting Pump";
+    starterMotor(HIGH);
+    displayStatus();
+    delay(preferences.getUInt(CRANK_TIME, 3)*1000);
+    starterMotor(LOW);
+    if(isPumpStarted()){
+      pumpLine = "Pump ON";
+      displayStatus();
+      break;
+    }else{
+      delay(preferences.getUInt(PUMP_RETRY_DELAY,5)*1000);
+      pumpLine = "Pump RETRY";
+      displayStatus();
+    }
+  }
+  if(isPumpStarted()==false){
+    pumpLine = "Pump FAILURE";
+    displayStatus();
+  }
 }
 
 void stopPump(){
   int line = 1;
-  lcdWrite(line,"Stopping Pump");
+  pumpLine = "Stopping Pump";
   starterMotor(LOW);
   ignition(LOW);
-  lcd.setCursor(0,0);
-  lcdWrite(line,"Pump OFF");
+  displayStatus();
   delay(3000);
+  if(isPumpStarted()){
+    pumpLine = "Pump STOP FAIL";
+  }else{
+    pumpLine = "Pump OFF";
+  }
+  displayStatus();
 }
 
 // check periodically and turn the pump off if tank is full
 void checkWaterLevel(){
   if(digitalRead(WATER_HIGH)==LOW){
-    // Serial.println("Water full");
     onWaterFullChange();  
   }
   String lvl = "";
@@ -108,11 +168,48 @@ void checkWaterLevel(){
   }else {
     lvl = "LOW";
   }
-  lvl = "W. Level " + lvl;
+  waterLevelLine = "W. Level " + lvl;
   if(lvl.equals(lastLvl)==false){    
     lastLvl = lvl;
     Serial.println("last lvl "+lastLvl);
-    lcdWrite(3, lvl);
+    updateScreen = true;
+    displayStatus();
   }  
   
+}
+
+void checkSprinklers() {
+  if(preferences.getUInt(SPRINKLERS_ENABLED, 1)==0){
+    sprinklerLine = "Sprinklers DISABLED";
+    return;
+  }
+  sprinklerLine = areSprinklersOn()?"Sprinklers OPEN":"Sprnklers CLOSED";
+  if(lastSprinklers.equals(sprinklerLine)==false){
+    updateScreen = true;
+    lastSprinklers = sprinklerLine;
+  }
+}
+
+void checkPump() {
+  if(preferences.getUInt(PUMP_ENABLED, 1)==false){
+    pumpLine = "Pump DISABLED";
+    return;
+  }
+  pumpLine = isPumpStarted()?"Pump ON":"Pump OFF";
+  if(lastPump.equals(pumpLine)==false){
+    updateScreen = true;
+    lastPump = pumpLine;
+  }
+}
+
+void checkInletValve(){
+  if(preferences.getUInt(INLET_VALVE_ENABLED, 1)==0){
+    inletLine = "Inlet DISABLED";
+    return;
+  }
+  inletLine = isInletValveOpen()?"Inlet OPEN":"Inlet CLOSED";
+  if(lastInlet.equals(inletLine)==false){
+    updateScreen = true;
+    lastInlet = inletLine;
+  }
 }
