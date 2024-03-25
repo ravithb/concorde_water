@@ -8,6 +8,8 @@ String sprinklerLine = "Sprinklers --";
 String waterLevelLine = "W. Level  --";
 
 bool isPumpStarted(){
+  // Serial.print("Pump started ? ");
+  // Serial.println(digitalRead(PUMP_SENSE)==HIGH);
   return (digitalRead(PUMP_SENSE)==HIGH);
 }
 
@@ -71,29 +73,51 @@ void starterMotor(int status) {
   digitalWrite(STARTER, status);
 }
 
+void decompression(int status){
+  if(status==HIGH){
+    Serial.println("Decompression Lever On");
+    pwm.setPWM(SERVO_DECOMP, 0, angleToPulse(preferences.getUInt(DECOMP_LEVER_ON, 120)));
+  }else{
+    Serial.println("Decompression Lever Off");
+    pwm.setPWM(SERVO_DECOMP, 0, angleToPulse(preferences.getUInt(DECOMP_LEVER_OFF, 0)));
+  }
+}
+
+void throttle(int value){
+  Serial.print("Setting throttle to ");
+  Serial.println(value);
+  pwm.setPWM(SERVO_THROTTLE,0,angleToPulse(value));
+}
+
 void sprinklers(int status, int isFromTimer){
-  if(preferences.getUInt("sprinklersEnabled", 1)==0){
+  if(preferences.getUInt(SPRINKLERS_ENABLED, 1)==0){
     sprinklerLine = "Sprinklers DISABLED";
     status = LOW;
     return;
   }
 
-  digitalWrite(SPRINKLERS, status);
-
   if(status==HIGH){
-    startPump();
+    digitalWrite(SPRINKLERS, status);
     Serial.println("Turning sprinkler valve on");
     sprinklerLine = "Sprinklers OPEN";
     if(isFromTimer==1){
       sprinklerLine = "Sprinklers OPEN T";
     }
+    displayStatus();
+    startPump();
   }else{
     status = LOW;
-    stopPump();
-    Serial.println("Turning sprinkler valve off");
-    sprinklerLine = "Sprnklers CLOSED";
-    if(isFromTimer==1){
-      sprinklerLine = "Sprnklers CLOSED T";
+    int pumpStatus = stopPump();
+    if(pumpStatus==1){
+      digitalWrite(SPRINKLERS, status);
+      Serial.println("Turning sprinkler valve off");
+      sprinklerLine = "Sprnklers CLOSED";
+      if(isFromTimer==1){
+        sprinklerLine = "Sprnklers CLOSED T";
+      }
+    }else{
+      // leave sprinkler on as the pump failed to stop
+      digitalWrite(SPRINKLERS, HIGH);
     }
   }
   
@@ -106,6 +130,7 @@ bool areSprinklersOn(){
 void startPump(){
   if(preferences.getUInt(PUMP_ENABLED, 1)==0){
     pumpLine = "Pump DISABLED";
+    decompression(LOW);
     starterMotor(LOW);
     ignition(LOW);
     displayStatus();
@@ -118,41 +143,71 @@ void startPump(){
 
   int retries = preferences.getUInt(STARTER_RETRY, 3);
   for(int i=0;i<retries;i++){
+    pumpLine = "Decomp On";
+    decompression(HIGH);
+    updateScreen = true;
+    displayStatus();
+
+    throttle(preferences.getUInt(THROTTLE_START,90));
+
     delay(preferences.getUInt(STARTER_DELAY, 2)*1000);
     pumpLine = "Starting Pump";
     starterMotor(HIGH);
+    updateScreen = true;
     displayStatus();
+
+    delay(preferences.getUInt(DECOMPR_LEVER_DELAY,1)*1000);
+    pumpLine = "Decomp Off";
+    decompression(LOW);
+    updateScreen = true;
+    displayStatus();
+
     delay(preferences.getUInt(CRANK_TIME, 3)*1000);
     starterMotor(LOW);
     if(isPumpStarted()){
+      throttle(preferences.getUInt(THROTTLE_RUN,120));
       pumpLine = "Pump ON";
+      updateScreen = true;
       displayStatus();
       break;
     }else{
+      throttle(preferences.getUInt(THROTTLE_STOP,0));
+      delay(3000);
       delay(preferences.getUInt(PUMP_RETRY_DELAY,5)*1000);
       pumpLine = "Pump RETRY";
+      updateScreen = true;
       displayStatus();
     }
   }
   if(isPumpStarted()==false){
     pumpLine = "Pump FAILURE";
+    updateScreen = true;
     displayStatus();
   }
 }
 
-void stopPump(){
+int stopPump(){
   int line = 1;
   pumpLine = "Stopping Pump";
+  decompression(LOW);
   starterMotor(LOW);
+  throttle(preferences.getUInt(THROTTLE_STOP,0));
+  delay(3000);
   ignition(LOW);
+  updateScreen = true;
   displayStatus();
   delay(3000);
+  int returnStatus = 0;
   if(isPumpStarted()){
     pumpLine = "Pump STOP FAIL";
+    returnStatus = 0;
   }else{
     pumpLine = "Pump OFF";
+    returnStatus = 1;
   }
+  updateScreen = true;
   displayStatus();
+  return returnStatus;
 }
 
 // check periodically and turn the pump off if tank is full

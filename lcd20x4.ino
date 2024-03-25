@@ -54,7 +54,6 @@ void initLCD(){
   Serial.println("Probing for PCF8574 on address 0x27...");
 
   // See http://playground.arduino.cc/Main/I2cScanner how to test for a I2C device.
-  Wire.begin();
   Wire.beginTransmission(0x27);
   error = Wire.endTransmission();
   Serial.print("Error: ");

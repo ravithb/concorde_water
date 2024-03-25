@@ -2,7 +2,7 @@ String timeStr = "";
 long oldPosition  = -999;
 long initPosition = -999;
 unsigned long menuTriggeredTime = 0;
-const int numOfScreens = 7;
+const int numOfScreens = 13;
 const String TYPE_ON_OFF = "ON_OFF";
 const String TYPE_EN_DIS = "EN_DIS";
 const String TYPE_INT = "INT";
@@ -18,7 +18,13 @@ String screens[numOfScreens][3] = {
   {"Starter Retry", "Times", TYPE_INT}, 
   {"Starter Delay", "Seconds", TYPE_INT}, 
   {"Crank Time", "Seconds", TYPE_INT}, 
-  {"Retry Delay","Seconds", TYPE_INT}   
+  {"Retry Delay","Seconds", TYPE_INT},
+  {"Dcomp Delay","Seconds", TYPE_INT},
+  {"Dcomp Off Pos", "Degrees", TYPE_INT},
+  {"Dcomp On Pos", "Degrees", TYPE_INT}, 
+  {"Thr Start Pos", "Degrees", TYPE_INT},  
+  {"Thr Run Pos", "Degrees", TYPE_INT},
+  {"Thr Stop Pos", "Degrees", TYPE_INT},   
 };
 int minMax[numOfScreens][2] = {
   {0,1},//Inlet
@@ -26,8 +32,14 @@ int minMax[numOfScreens][2] = {
   {0,1},//Pump
   {3,10},//Starter Retry
   {2,10},//Starter Delay
-  {2,10},//Crank Time
+  {1,5},//Crank Time
   {2,10},//Retry Delay
+  {1,3},//Decompression Leaver Delay
+  {0,120},//Decomp Lever Off Position
+  {0,120},//Decomp Lever On Position
+  {0,120},//Thtottle Start Position
+  {0,120},//Thtottle Run Position
+  {0,120},//Thtottle Off Position
 };
 int parameters[numOfScreens];
 
@@ -46,6 +58,18 @@ void loadParameterValues(){
     parameters[5] = preferences.getUInt(CRANK_TIME, 3);
     //Retry Delay
     parameters[6] = preferences.getUInt(PUMP_RETRY_DELAY,5);
+    //Decompression Lever Delay
+    parameters[7] = preferences.getUInt(DECOMPR_LEVER_DELAY,1);
+    //Decompresion Lever Off Position
+    parameters[8] = preferences.getUInt(DECOMP_LEVER_OFF,0);
+    //Decompresion Lever On Position
+    parameters[9] = preferences.getUInt(DECOMP_LEVER_ON,120);
+    //Thtottle Start Position
+    parameters[10] = preferences.getUInt(THROTTLE_START,90);
+    //Thtottle Run Position
+    parameters[11] = preferences.getUInt(THROTTLE_RUN,120);
+    //Thtottle Stop Position
+    parameters[12] = preferences.getUInt(THROTTLE_STOP,0);
 }
 
 int getCurrentVal(int screenIdx){
@@ -64,6 +88,18 @@ int getCurrentVal(int screenIdx){
       return preferences.getUInt(CRANK_TIME, 3);
     case 6: //Retry Delay
       return preferences.getUInt(PUMP_RETRY_DELAY,5);
+    case 7: //Decompression Lever Delay
+      return preferences.getUInt(DECOMPR_LEVER_DELAY,1);
+    case 8: //Decompresion Lever Off Position
+      return preferences.getUInt(DECOMP_LEVER_OFF,0);
+    case 9: //Decompresion Lever On Position
+      return preferences.getUInt(DECOMP_LEVER_ON,120);
+    case 10: //Thtottle Start Position
+      return preferences.getUInt(THROTTLE_START,90);
+    case 11: //Thtottle Run Position
+      return preferences.getUInt(THROTTLE_RUN,120);
+    case 12: //Thtottle Stop Position
+      return preferences.getUInt(THROTTLE_STOP,0);
   }
 }
 
@@ -123,14 +159,56 @@ void saveParameter(int screenIdx){
       Serial.print("Read back ");
       Serial.println(preferences.getUInt(CRANK_TIME,99));
       break;
-    case -2:
-    default:
-      //Retry Delay
+    case 6: //Retry Delay
       Serial.print("Pump Retry Delay ");
       Serial.println(parameters[screenIdx]);
       preferences.putUInt(PUMP_RETRY_DELAY,parameters[screenIdx]);
       Serial.print("Read back ");
       Serial.println(preferences.getUInt(PUMP_RETRY_DELAY,99));
+      break;
+    case 7: //Decompression Lever Delay
+      Serial.print("Decompression Lever Delay ");
+      Serial.println(parameters[screenIdx]);
+      preferences.putUInt(DECOMPR_LEVER_DELAY,parameters[screenIdx]);
+      Serial.print("Read back ");
+      Serial.println(preferences.getUInt(DECOMPR_LEVER_DELAY,1));
+      break;
+    case 8: //Decompresion Lever Off
+      Serial.print("Decompression Lever Off Position ");
+      Serial.println(parameters[screenIdx]);
+      preferences.putUInt(DECOMP_LEVER_OFF,parameters[screenIdx]);
+      Serial.print("Read back ");
+      Serial.println(preferences.getUInt(DECOMP_LEVER_OFF,0));
+      break;
+    case 9: //Decompresion Lever Off
+      Serial.print("Decompression Lever On Position ");
+      Serial.println(parameters[screenIdx]);
+      preferences.putUInt(DECOMP_LEVER_ON,parameters[screenIdx]);
+      Serial.print("Read back ");
+      Serial.println(preferences.getUInt(DECOMP_LEVER_ON,120));
+      break;
+    case 10: //Throttle Start Position
+      Serial.print("Throttle Start Position Degrees ");
+      Serial.println(parameters[screenIdx]);
+      preferences.putUInt(THROTTLE_START,parameters[screenIdx]);
+      Serial.print("Read back ");
+      Serial.println(preferences.getUInt(THROTTLE_START,90));
+      break;
+    case 11: //Throttle Run Position
+      Serial.print("Throttle Run Position Degrees ");
+      Serial.println(parameters[screenIdx]);
+      preferences.putUInt(THROTTLE_RUN,parameters[screenIdx]);
+      Serial.print("Read back ");
+      Serial.println(preferences.getUInt(THROTTLE_RUN,120));
+      break;
+    case 12:
+    case -2:
+    default://Throttle Stop Position
+      Serial.print("Throttle Stop Position Degrees ");
+      Serial.println(parameters[screenIdx]);
+      preferences.putUInt(THROTTLE_STOP,parameters[screenIdx]);
+      Serial.print("Read back ");
+      Serial.println(preferences.getUInt(THROTTLE_STOP,0));
       break;
   }
 }
