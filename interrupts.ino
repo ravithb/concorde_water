@@ -12,9 +12,9 @@ void onWaterFullChange(){
   //   currentWaterLevel = 1;
   // }
   /* For capacitive sensor */
-  if (digitalRead(WATER_HIGH) == HIGH && digitalRead(WATER_LOW) == HIGH ){
+  if (digitalRead(WATER_HIGH) == LOW && digitalRead(WATER_LOW) == LOW ){
     currentWaterLevel = 2;
-  } else if(digitalRead(WATER_HIGH) == LOW && digitalRead(WATER_LOW) == LOW ) {
+  } else if(digitalRead(WATER_HIGH) == HIGH && digitalRead(WATER_LOW) == HIGH ) {
     currentWaterLevel = 0;
   } else {
     currentWaterLevel = 1;
