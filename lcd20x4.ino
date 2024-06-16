@@ -20,6 +20,9 @@ bool isBacklightOn(){
 }
 
 void backlight(bool on){
+  if(!hasLCD){
+    return;
+  }
   if(on){
     if(backlightValue == 0){
       backlightValue = 255;
@@ -62,8 +65,10 @@ void initLCD(){
   if (error == 0) {
     Serial.println(": LCD found.");
     lcd.begin(CHARS, ROWS);  // initialize the lcd
+    hasLCD = true;
     backlight(true);
   } else {
+    hasLCD = false;
     Serial.println(": LCD not found.");
   }  
 }
@@ -110,6 +115,9 @@ void clearLine(int row){
 }
 
 void lcdWrite(int row, String msg){
+  if(!hasLCD){
+    return;
+  }
   if(isInSettings==0){
     clearLine(row);
     lcd.print(msg);

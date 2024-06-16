@@ -36,6 +36,7 @@
 #define STARTER_RETRY "starterRetry"
 #define STARTER_DELAY "starterDelay"
 #define CRANK_TIME "crankTime"
+#define PUMP_SENSE_DELAY "pumpSenseDelay"
 #define PUMP_RETRY_DELAY "pumpRetryDelay"
 #define DECOMPR_LEVER_DELAY "decomprLeverDelay"
 #define DECOMP_LEVER_OFF "decompLeverOff"
@@ -58,6 +59,7 @@ char* currentPumpStatus = 0;
 bool updateScreen = false;
 bool menuInterrupt = false;
 int loopCounter = 0;
+bool hasLCD = false;
 
 LiquidCrystal_PCF8574 lcd(0x27);
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(0x44);
@@ -80,6 +82,7 @@ void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
   Wire.begin();
+  // Wire.setTimeout(20);
   while (!Serial) { delay(100); }
   Serial.println();
   Serial.println("******************************************************");
@@ -119,9 +122,6 @@ void setup() {
   digitalWrite(STARTER, LOW);
 
   enc.begin(ROT_CLK, ROT_DT, CLICKS_PER_STEP);
-  // enc.setChangedHandler(rotate);
-  // enc.setLeftRotationHandler(showDirection);
-  // enc.setRightRotationHandler(showDirection);
 
   enc.setIncrement(1);
 
@@ -132,37 +132,18 @@ void setup() {
   delay(2000);
 
   initLCD();
-  lcd.clear();
+  if(hasLCD){
+    lcd.clear();
+  }
   updateScreen = true;
   displayStatus();
 
 
   pwm.begin();
-  //pwm.setOscillatorFrequency(27000000);
   pwm.setPWMFreq(SERVO_FREQ);  // Analog servos run at ~50 Hz updates
-
 }
 
 void loop() {
-
-  // for( int angle =0; angle<121; angle +=2){
-  //   if(angle > 60){
-  //     pwm.setPWM(3, 0, angleToPulse(0) );
-  //   }else{
-  //     pwm.setPWM(3, 0, angleToPulse(120) );
-  //   }
-  //   delay(100);
-  // }
-
-
-
-  // Serial.println("Settings");
-  // for(int i = 0; i < 7; i++)
-  // {
-  //   Serial.print(i);
-  //   Serial.print(" ");
-  //   Serial.println(getCurrentVal(i));
-  // }
 
   checkBacklight();
   checkInletValve();

@@ -104,7 +104,15 @@ void sprinklers(int status, int isFromTimer){
       sprinklerLine = "Sprinklers OPEN T";
     }
     displayStatus();
-    startPump();
+    delay(30000); // wait for mechanical valve opener to slowly open the main valve fully before starting the pump
+    bool pumpStatus = startPump();
+    if(pumpStatus == false){
+      status = LOW;
+      digitalWrite(SPRINKLERS, status);
+      Serial.println("Turning sprinkler valve off");
+      sprinklerLine = "Sprnklers CLOSED";
+      displayStatus();
+    }
   }else{
     status = LOW;
     int pumpStatus = stopPump();
@@ -127,14 +135,14 @@ bool areSprinklersOn(){
   return HIGH == digitalRead(SPRINKLERS);
 }
 
-void startPump(){
+bool startPump(){
   if(preferences.getUInt(PUMP_ENABLED, 1)==0){
     pumpLine = "Pump DISABLED";
     decompression(LOW);
     starterMotor(LOW);
     ignition(LOW);
     displayStatus();
-    return;
+    return false;
   }
 
   pumpLine = "Ignition ON";
@@ -164,6 +172,7 @@ void startPump(){
 
     delay(preferences.getUInt(CRANK_TIME, 3)*1000);
     starterMotor(LOW);
+    delay(preferences.getUInt(PUMP_SENSE_DELAY, 3)*1000);
     if(isPumpStarted()){
       throttle(preferences.getUInt(THROTTLE_RUN,120));
       pumpLine = "Pump ON";
@@ -183,7 +192,10 @@ void startPump(){
     pumpLine = "Pump FAILURE";
     updateScreen = true;
     displayStatus();
+    return false;
   }
+
+  return true;
 }
 
 int stopPump(){
