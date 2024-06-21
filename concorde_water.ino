@@ -38,7 +38,7 @@
 #define CRANK_TIME "crankTime"
 #define PUMP_SENSE_DELAY "pumpSenseDelay"
 #define PUMP_RETRY_DELAY "pumpRetryDelay"
-#define DECOMPR_LEVER_DELAY "decomprLeverDelay"
+#define DECOMP_LEVER_DELAY "decomprLeverDelay"
 #define DECOMP_LEVER_OFF "decompLeverOff"
 #define DECOMP_LEVER_ON "decompLeverOn"
 #define THROTTLE_STOP "throttleStop"
@@ -49,6 +49,7 @@
 #define USMIN  600 // This is the rounded 'minimum' microsecond length based on the minimum pulse of 150
 #define USMAX  2400 // This is the rounded 'maximum' microsecond length based on the maximum pulse of 600
 #define SERVO_FREQ 60 // Analog servos run at ~50 Hz updates
+#define MECH_VALVE_DELAY 32000 // Time taken for the mechanical valve to open or close fully in milliseconds
 
 int currentWaterLevel = 0;         // 0=LOW 1=Medium 2=Full
 int lastInletTriggerSource = 0;    // 0 = Null, 1 = By water level, 2 = By timer
@@ -60,6 +61,10 @@ bool updateScreen = false;
 bool menuInterrupt = false;
 int loopCounter = 0;
 bool hasLCD = false;
+int manualWatering = 0;
+int manualFilling = 0;
+int pumpTest = 0;
+TaskHandle_t hwLoopTask;
 
 LiquidCrystal_PCF8574 lcd(0x27);
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(0x44);
@@ -105,15 +110,13 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(SOL_SPRINKLERS), onSprinklerTimer, CHANGE);
   attachInterrupt(digitalPinToInterrupt(ROT_SW), onRotSw, FALLING);
 
-  timer1 = timerBegin(0, 80, true);
-  timerAttachInterrupt(timer1, &handleLoop, true);
-  timerAlarmWrite(timer1, 1000, true); 
-  timerAlarmEnable(timer1);
+  timer1 = timerBegin(1000000);
+  timerAttachInterrupt(timer1, &handleLoop);
+  timerAlarm(timer1, 1000, true, 0); 
 
-  timer2 = timerBegin(1, 80, true);
-  timerAttachInterrupt(timer2, &metronome, true);
-  timerAlarmWrite(timer2, 1000000, true);
-  timerAlarmEnable(timer2);
+  timer2 = timerBegin(1000000);
+  timerAttachInterrupt(timer2, &metronome);
+  timerAlarm(timer2, 1000000, true, 0);
 
   // Start by turning everything off
   digitalWrite(INLET_VALVE, LOW);
@@ -141,6 +144,16 @@ void setup() {
 
   pwm.begin();
   pwm.setPWMFreq(SERVO_FREQ);  // Analog servos run at ~50 Hz updates
+
+  xTaskCreatePinnedToCore(
+                  hwLoop,   /* Task function. */
+                  "HWLoop",     /* name of task. */
+                  10000,       /* Stack size of task */
+                  NULL,        /* parameter of the task */
+                  1,           /* priority of the task */
+                  &hwLoopTask,      /* Task handle to keep track of created task */
+                  0);          /* pin task to core 0 */
+  delay(500); 
 }
 
 void loop() {
@@ -166,26 +179,65 @@ void loop() {
   displayStatus();
   // Serial.println("Passed menu interrupt");
   // Only execute the rest if not in menu
-  if (currentWaterLevel == 0 && isInletValveOpen()==false) {
-    inletValve(HIGH, 0);
-    lastInletTriggerSource = 1;
-  } else if (currentWaterLevel == 2 && isInletValveOpen() && lastInletTriggerSource == 1) {
-    inletValve(LOW, 0);
-    lastInletTriggerSource = 0;
+  
+}
+
+// hardware control loop
+void hwLoop(void* pvParameters) {
+  Serial.print("Task0 running on core ");
+  Serial.println(xPortGetCoreID());
+  while(true){
+    if(manualFilling <= 0){
+      if (currentWaterLevel == 0 && isInletValveOpen()==false) {
+        inletValve(HIGH, 0);
+        lastInletTriggerSource = 1;
+      } else if (currentWaterLevel == 2 && isInletValveOpen()) {
+        inletValve(LOW, 0);
+        lastInletTriggerSource = 0;
+      }
+      if (currentWaterLevel < 2 && inletTimerStatus == LOW && isInletValveOpen()==false) {
+        inletValve(HIGH, 1);
+        lastInletTriggerSource = 2;  // set trigger source to timer
+      } else if (inletTimerStatus == HIGH && isInletValveOpen() && lastInletTriggerSource == 2) {
+        inletValve(LOW, 1);
+        lastInletTriggerSource = 0;
+      }
+    }else{
+      Serial.print("Manual filling ");
+      Serial.print(manualFilling);
+      Serial.print(isInletValveOpen()?" open ":" closed ");
+      Serial.println(isActiveOptionSet()?" opt param set ":" opt param null");
+      // manual filling ignores the water level sensor
+      if (manualFilling == 2 && isInletValveOpen()==false && isActiveOptionSet()) {
+        inletValve(HIGH, 2);
+        lastInletTriggerSource = 3;  // set trigger source to manual
+      } else if (manualFilling == 1 && isInletValveOpen() && isActiveOptionSet()) {
+        inletValve(LOW, 2);
+        lastInletTriggerSource = 3;
+      }
+    }
+    if (sprinklerTimerStatus == LOW && areSprinklersOn()==false) {
+      sprinklers(HIGH, 1);
+    } else if (sprinklerTimerStatus == HIGH && areSprinklersOn()) {
+      sprinklers(LOW, 1);
+    }
+    if(isActiveOptionSet()) {
+      if (manualWatering == 2 && areSprinklersOn()==false) {
+        sprinklers(HIGH, 2);
+      } else if (manualWatering == 1 && areSprinklersOn()) {
+        sprinklers(LOW, 2);
+      }
+
+      if(isPumpStarted() && pumpTest == 1){
+        stopPump();
+      }else if(isPumpStarted()==false && pumpTest==2){
+        startPump(false);
+      }
+    }
+    resetSelectedActiveOption();
+    displayStatus();
+    delay(100);
   }
-  if (currentWaterLevel < 2 && inletTimerStatus == LOW && isInletValveOpen()==false) {
-    inletValve(HIGH, 1);
-    lastInletTriggerSource = 2;  // set trigger source to timer
-  } else if (inletTimerStatus == HIGH && isInletValveOpen() && lastInletTriggerSource == 2) {
-    inletValve(LOW, 1);
-    lastInletTriggerSource = 0;
-  }
-  if (sprinklerTimerStatus == LOW && areSprinklersOn()==false) {
-    sprinklers(HIGH, 1);
-  } else if (sprinklerTimerStatus == HIGH && areSprinklersOn()) {
-    sprinklers(LOW, 1);
-  }
-  displayStatus();
   
 }
 

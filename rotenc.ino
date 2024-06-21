@@ -16,15 +16,4 @@ void onRotSw(){
     menuInterrupt = true;
     triggerMenu();
   }
-  // Serial.println("SW");
 }
-
-// // on left or right rotattion
-// void showDirection(ESPRotary& r) {
-//   Serial.println(r.directionToString(r.getDirection()));
-// }
-
-// // on change
-// void rotate(ESPRotary& r) {
-//    Serial.println(r.getPosition());
-// }
