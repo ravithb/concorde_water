@@ -10,10 +10,6 @@ const String TYPE_NONE = "NONE";
 const String ON_OFF_EXIT[3] = {"EXIT","OFF","ON"};
 const String EN_DIS[2] = {"DISABLED","ENABLED"};
 
-int selectedActiveOption = -1;
-int selectedActiveOptParam = -1;
-bool runActiveOptionFlag = false;
-
 int currentScreen = -1;
 int lastScreen = -1;
 String screens[numOfScreens][3] = {
@@ -187,12 +183,19 @@ void runActiveOption(){
   }
 }
 
+void resetActiveOptionMenu(){
+  parameters[0] = minMax[0][0]; // Manual watering
+  parameters[1] = minMax[1][0]; // Manual filling
+  parameters[16] = minMax[16][0]; // Pump test
+}
+
 void resetSelectedActiveOption(){
   if(selectedActiveOption >=0 && runActiveOptionFlag == true){
-    Serial.println("Reset active option");
+    Serial.println("Reset active option in if");
     selectedActiveOption = -1;
     selectedActiveOptParam = -1;
     runActiveOptionFlag = false;
+    resetActiveOptionMenu();
   }
 }
 
@@ -310,9 +313,12 @@ void exitMenu(){
   menuTriggeredTime = 0;
   currentScreen = -1;
   menuInterrupt = false;
+  isInMenu = false;
   updateScreen = true;
   displayStatus();
 }
+
+
 
 void menu(){
   // Serial.print("trigger ");
@@ -368,7 +374,15 @@ void menu(){
     }
 
     if(currentScreen != -1) {
-      displayMenu();
+      if(hwBusy){
+        updateScreen = true;
+        displayBusy();
+        delay(2000);
+        exitMenu();
+        return;
+      }else{
+        displayMenu();
+      }
       if(menuTriggeredTime + 10000 < millis()) {
         Serial.println("Exit menu on timeout");
         exitMenu();
@@ -425,6 +439,7 @@ void triggerMenu()
 }
 
 void displayMenu() {
+  isInMenu = true;
   if(updateScreen) {
     setKeepBacklightOn(true);
     lcd.clear();

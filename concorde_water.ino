@@ -55,7 +55,7 @@ int currentWaterLevel = 0;         // 0=LOW 1=Medium 2=Full
 int lastInletTriggerSource = 0;    // 0 = Null, 1 = By water level, 2 = By timer
 bool inletTimerStatus = HIGH;      // high is solenoid off
 bool sprinklerTimerStatus = HIGH;  // high is solenoid off
-int isInSettings = 0;              // display mode
+bool isInMenu = false;              // display mode
 char* currentPumpStatus = 0;
 bool updateScreen = false;
 bool menuInterrupt = false;
@@ -65,6 +65,10 @@ int manualWatering = 0;
 int manualFilling = 0;
 int pumpTest = 0;
 TaskHandle_t hwLoopTask;
+bool hwBusy = false;
+int selectedActiveOption = -1;
+int selectedActiveOptParam = -1;
+bool runActiveOptionFlag = false;
 
 LiquidCrystal_PCF8574 lcd(0x27);
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(0x44);
@@ -154,15 +158,19 @@ void setup() {
                   &hwLoopTask,      /* Task handle to keep track of created task */
                   0);          /* pin task to core 0 */
   delay(500); 
+  Serial.println("Setup complete");
 }
 
 void loop() {
 
   checkBacklight();
-  checkInletValve();
-  checkWaterLevel();
-  checkSprinklers();
-  checkPump();
+  // while busy there are extra messages that get updated by the hwLoop
+  if(!hwBusy){
+    checkInletValve();
+    checkWaterLevel();
+    checkSprinklers();
+    checkPump();
+  }
 
   menu();
   
@@ -176,6 +184,7 @@ void loop() {
   if(menuInterrupt){
     return;
   }
+
   displayStatus();
   // Serial.println("Passed menu interrupt");
   // Only execute the rest if not in menu
@@ -222,20 +231,27 @@ void hwLoop(void* pvParameters) {
       sprinklers(LOW, 1);
     }
     if(isActiveOptionSet()) {
+      Serial.println("if isActiveOptionSet");
+      Serial.println(selectedActiveOption);
+      Serial.println(selectedActiveOptParam);
+      resetSelectedActiveOption();
       if (manualWatering == 2 && areSprinklersOn()==false) {
         sprinklers(HIGH, 2);
+        manualWatering = 0; // reset the action
       } else if (manualWatering == 1 && areSprinklersOn()) {
         sprinklers(LOW, 2);
+        manualWatering = 0; // reset the action
       }
 
       if(isPumpStarted() && pumpTest == 1){
         stopPump();
+        pumpTest = 0;
       }else if(isPumpStarted()==false && pumpTest==2){
         startPump(false);
+        pumpTest = 0;
       }
     }
-    resetSelectedActiveOption();
-    displayStatus();
+    
     delay(100);
   }
   

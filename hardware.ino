@@ -14,11 +14,21 @@ bool isPumpStarted(){
 }
 
 void displayStatus(){
-  if(!menuInterrupt && updateScreen){
+  if(isInMenu==false && updateScreen){
     lcdWrite(0, inletLine);
     lcdWrite(1, pumpLine);
     lcdWrite(2, sprinklerLine);
     lcdWrite(3, waterLevelLine);
+    updateScreen = false;
+  }
+}
+
+void displayBusy() {
+  if(hwBusy && updateScreen){
+    lcdWrite(0, "BUSY");
+    lcdWrite(1, "Please wait..");
+    lcdWrite(2, " ");
+    lcdWrite(3, " ");
     updateScreen = false;
   }
 }
@@ -101,6 +111,7 @@ void throttle(int value){
 }
 
 void sprinklers(int status, int source){
+  hwBusy = true;
   if(preferences.getUInt(SPRINKLERS_ENABLED, 1)==0){
     sprinklerLine = "Sprinklers DISABLED";
     status = LOW;
@@ -111,7 +122,6 @@ void sprinklers(int status, int source){
     digitalWrite(SPRINKLERS, status);
     sprinklerLine = "Sprinklers Opening..";
     updateScreen = true;
-    displayStatus();
     delay(MECH_VALVE_DELAY); // wait for mechanical valve opener to slowly open the main valve fully before starting the pump
 
     Serial.println("Turning sprinkler valve on");
@@ -131,11 +141,9 @@ void sprinklers(int status, int source){
       digitalWrite(SPRINKLERS, status);      
       sprinklerLine = "Sprinklers Closing..";
       updateScreen = true;
-      displayStatus();
       delay(MECH_VALVE_DELAY);
       sprinklerLine = "Sprnklers CLOSED";
       updateScreen = true;
-      displayStatus();
     }
   }else{
     status = LOW;
@@ -145,7 +153,6 @@ void sprinklers(int status, int source){
       digitalWrite(SPRINKLERS, status);
       sprinklerLine = "Sprinklers Closing..";
       updateScreen = true;
-      displayStatus();
       delay(MECH_VALVE_DELAY);
       
       sprinklerLine = "Sprinklers CLOSED";
@@ -157,14 +164,13 @@ void sprinklers(int status, int source){
         Serial.println("Turning sprinkler valve off manually");
       }
       updateScreen = true;
-      displayStatus();
     }else{
       // leave sprinkler on as the pump failed to stop
       digitalWrite(SPRINKLERS, HIGH);
       Serial.println("Turning sprinkler valve on due to pump stop failure");
     }
   }
-  
+  hwBusy = false;
 }
 
 bool areSprinklersOn(){
@@ -180,14 +186,12 @@ bool startPump(bool retry){
     starterMotor(LOW);
     ignition(LOW);
     updateScreen = true;
-    displayStatus();
     return false;
   }
 
   pumpLine = "Ignition ON";
   ignition(HIGH);
   updateScreen = true;
-  displayStatus();
 
   int retries = retry?preferences.getUInt(STARTER_RETRY, 3):1;
   for(int i=0;i<retries;i++){
@@ -198,7 +202,6 @@ bool startPump(bool retry){
     pumpLine = "Decomp On";
     decompression(HIGH);
     updateScreen = true;
-    displayStatus();
 
     throttle(preferences.getUInt(THROTTLE_START,90));
 
@@ -206,13 +209,11 @@ bool startPump(bool retry){
     pumpLine = "Starting Pump";
     starterMotor(HIGH);
     updateScreen = true;
-    displayStatus();
 
     delay(preferences.getUInt(DECOMP_LEVER_DELAY,1)*1000);
     pumpLine = "Decomp Off";
     decompression(LOW);
     updateScreen = true;
-    displayStatus();
 
     delay(preferences.getUInt(CRANK_TIME, 3)*1000);
     starterMotor(LOW);
@@ -221,7 +222,6 @@ bool startPump(bool retry){
       throttle(preferences.getUInt(THROTTLE_RUN,120));
       pumpLine = "Pump ON";
       updateScreen = true;
-      displayStatus();
       break;
     }else{
       throttle(preferences.getUInt(THROTTLE_STOP,0));
@@ -229,13 +229,11 @@ bool startPump(bool retry){
       delay(preferences.getUInt(PUMP_RETRY_DELAY,5)*1000);
       pumpLine = "Pump RETRY";
       updateScreen = true;
-      displayStatus();
     }
   }
   if(isPumpStarted()==false){
     pumpLine = "Pump FAILURE";
     updateScreen = true;
-    displayStatus();
     return false;
   }
 
@@ -251,7 +249,6 @@ int stopPump(){
   delay(3000);
   ignition(LOW);
   updateScreen = true;
-  displayStatus();
   delay(3000);
   int returnStatus = 0;
   if(isPumpStarted()){
@@ -262,7 +259,6 @@ int stopPump(){
     returnStatus = 1;
   }
   updateScreen = true;
-  displayStatus();
   return returnStatus;
 }
 
@@ -284,7 +280,6 @@ void checkWaterLevel(){
     lastLvl = lvl;
     Serial.println("last lvl "+lastLvl);
     updateScreen = true;
-    displayStatus();
   }  
   
 }
@@ -294,7 +289,7 @@ void checkSprinklers() {
     sprinklerLine = "Sprinklers DISABLED";
     return;
   }
-  sprinklerLine = areSprinklersOn()?"Sprinklers OPEN":"Sprnklers CLOSED";
+  sprinklerLine = (areSprinklersOn()?"Sprinklers OPEN":"Sprnklers CLOSED");
   if(lastSprinklers.equals(sprinklerLine)==false){
     updateScreen = true;
     lastSprinklers = sprinklerLine;

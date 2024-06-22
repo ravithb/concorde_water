@@ -118,8 +118,7 @@ void lcdWrite(int row, String msg){
   if(!hasLCD){
     return;
   }
-  if(isInSettings==0){
-    clearLine(row);
-    lcd.print(msg);
-  }
+  clearLine(row);
+  lcd.print(msg);
 }
+
