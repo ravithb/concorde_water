@@ -9,6 +9,11 @@
 #include <ESPRotary.h>
 #include <Preferences.h>
 #include <Adafruit_PWMServoDriver.h>
+#include <BLEDevice.h>
+#include <BLEUtils.h>
+#include <BLEServer.h>
+#include <BLE2902.h>
+
 #define LED 2
 #define INLET_VALVE 23
 #define IGNITION 16
@@ -18,9 +23,9 @@
 #define WATER_HIGH 5
 #define SOL_INLET 4
 #define SOL_SPRINKLERS 0
-#define ROT_SW 36
-#define ROT_CLK 34
-#define ROT_DT 39
+#define ROT_SW 34
+#define ROT_CLK 33
+#define ROT_DT 35
 #define PUMP_SENSE 32
 #define CLICKS_PER_STEP 4
 #define SERVO_DECOMP 2
@@ -51,6 +56,12 @@
 #define SERVO_FREQ 60 // Analog servos run at ~50 Hz updates
 #define MECH_VALVE_DELAY 32000 // Time taken for the mechanical valve to open or close fully in milliseconds
 
+#define BLE_SERVICE_UUID                  "c0ae3000-da8a-45c6-a5c5-fbad540c2bf3"
+#define BLE_CHARACTEREISTIC_STATUS_UUID   "c0ae3001-da8a-45c6-a5c5-fbad540c2bf3"
+#define BLE_CHARACTEREISTIC_LOGS_UUID     "c0ae3002-da8a-45c6-a5c5-fbad540c2bf3"
+#define BLE_CHARACTEREISTIC_COMMANDS_UUID "c0ae3003-da8a-45c6-a5c5-fbad540c2bf3"
+#define BT_DEVICE_NAME "CMFC_IRRIGATION"
+
 int currentWaterLevel = 0;         // 0=LOW 1=Medium 2=Full
 int lastInletTriggerSource = 0;    // 0 = Null, 1 = By water level, 2 = By timer
 bool inletTimerStatus = HIGH;      // high is solenoid off
@@ -69,15 +80,17 @@ bool hwBusy = false;
 int selectedActiveOption = -1;
 int selectedActiveOptParam = -1;
 bool runActiveOptionFlag = false;
+unsigned long lastBtUpdate = 0;
 
 LiquidCrystal_PCF8574 lcd(0x27);
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(0x44);
-
 // DS3231 rtc;
 ESPRotary enc;
 Preferences preferences;
 hw_timer_t *timer1 = NULL;
 hw_timer_t *timer2 = NULL;
+
+void debugLog(String s);
 
 void IRAM_ATTR handleLoop() {
   enc.loop();
@@ -93,9 +106,13 @@ void setup() {
   Wire.begin();
   // Wire.setTimeout(20);
   while (!Serial) { delay(100); }
+  
+  bleSetup();
+
+
   Serial.println();
-  Serial.println("******************************************************");
-  Serial.print("Starting up...");
+  debugLog("******************************************************");
+  debugLog("Starting up...");
   pinMode(INLET_VALVE, OUTPUT);
   pinMode(IGNITION, OUTPUT);
   pinMode(SPRINKLERS, OUTPUT);
@@ -158,7 +175,9 @@ void setup() {
                   &hwLoopTask,      /* Task handle to keep track of created task */
                   0);          /* pin task to core 0 */
   delay(500); 
-  Serial.println("Setup complete");
+
+  // 
+  debugLog("Setup complete");
 }
 
 void loop() {
@@ -188,13 +207,10 @@ void loop() {
   displayStatus();
   // Serial.println("Passed menu interrupt");
   // Only execute the rest if not in menu
-  
 }
 
 // hardware control loop
 void hwLoop(void* pvParameters) {
-  Serial.print("Task0 running on core ");
-  Serial.println(xPortGetCoreID());
   while(true){
     if(manualFilling <= 0){
       if (currentWaterLevel == 0 && isInletValveOpen()==false) {
@@ -212,10 +228,10 @@ void hwLoop(void* pvParameters) {
         lastInletTriggerSource = 0;
       }
     }else{
-      Serial.print("Manual filling ");
-      Serial.print(manualFilling);
-      Serial.print(isInletValveOpen()?" open ":" closed ");
-      Serial.println(isActiveOptionSet()?" opt param set ":" opt param null");
+      // Serial.print("Manual filling ");
+      // Serial.print(manualFilling);
+      // Serial.print(isInletValveOpen()?" open ":" closed ");
+      // Serial.println(isActiveOptionSet()?" opt param set ":" opt param null");
       // manual filling ignores the water level sensor
       if (manualFilling == 2 && isInletValveOpen()==false && isActiveOptionSet()) {
         inletValve(HIGH, 2);
@@ -231,9 +247,9 @@ void hwLoop(void* pvParameters) {
       sprinklers(LOW, 1);
     }
     if(isActiveOptionSet()) {
-      Serial.println("if isActiveOptionSet");
-      Serial.println(selectedActiveOption);
-      Serial.println(selectedActiveOptParam);
+      // Serial.println("if isActiveOptionSet");
+      // Serial.println(selectedActiveOption);
+      // Serial.println(selectedActiveOptParam);
       resetSelectedActiveOption();
       if (manualWatering == 2 && areSprinklersOn()==false) {
         sprinklers(HIGH, 2);

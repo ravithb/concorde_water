@@ -146,12 +146,8 @@ void setActiveOption(int screenIdx){
       selectedActiveOptParam = parameters[screenIdx] % 3;
     break;
   }
-  Serial.print("Set Active option ");
   selectedActiveOption = screenIdx;
-  Serial.print("S=");
-  Serial.print(selectedActiveOption);
-  Serial.print(" , O=");
-  Serial.println(selectedActiveOptParam);
+  debugLog("Set active option "+String(selectedActiveOption)+" with param "+String(selectedActiveOptParam));
 }
 
 void runActiveOption(){
@@ -159,26 +155,26 @@ void runActiveOption(){
   bool exitMenuFlag = false;
   switch(selectedActiveOption){
     case 0: // manual watering
-      Serial.println("run manual watering");
+      debugLog("Run manual watering");
       manualWatering = selectedActiveOptParam;
       runActiveOptionFlag = true;
       exitMenuFlag = true;
       break;
     case 1: // manual filling
-      Serial.println("run manual filling");
+      debugLog("Run manual filling");
       manualFilling = selectedActiveOptParam;
       runActiveOptionFlag = true;
       exitMenuFlag = true;
       break;
     case 16: // pump test
-      Serial.println("run pump test");
+      debugLog("Run pump test");
       pumpTest = selectedActiveOptParam;
       runActiveOptionFlag = true;
       exitMenuFlag = true;
       break;
   }
   if(exitMenuFlag){
-    Serial.println("Exit menu on active option selection");
+    debugLog("Exit menu on active option selection");
     exitMenu();
   }
 }
@@ -191,7 +187,6 @@ void resetActiveOptionMenu(){
 
 void resetSelectedActiveOption(){
   if(selectedActiveOption >=0 && runActiveOptionFlag == true){
-    Serial.println("Reset active option in if");
     selectedActiveOption = -1;
     selectedActiveOptParam = -1;
     runActiveOptionFlag = false;
@@ -357,10 +352,6 @@ void menu(){
 
   if(menuInterrupt==true && selectedActiveOption>-1){ 
     // active option triggered
-    Serial.print("activeOption");
-    Serial.print(selectedActiveOption);
-    Serial.print(" , ");
-    Serial.println(selectedActiveOptParam);
     runActiveOption();
     
   }
@@ -384,17 +375,16 @@ void menu(){
         displayMenu();
       }
       if(menuTriggeredTime + 10000 < millis()) {
-        Serial.println("Exit menu on timeout");
+        debugLog("Exit menu on timeout");
         exitMenu();
-        // Serial.println("Init pos:");
-        // Serial.println(initPosition);
+
         enc.resetPosition(initPosition, false);
         oldPosition = initPosition;
         newPosition = initPosition;
         initPosition = -999;
       }
     }else{
-      Serial.println("Exit menu on end");
+      debugLog("Exit menu on end");
       exitMenu();
     }   
 
