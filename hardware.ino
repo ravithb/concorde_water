@@ -107,7 +107,7 @@ void decompression(int status){
 }
 
 void throttle(int value){
-  debugLog("Setting throttle to "+value);
+  debugLog("Setting throttle to "+String(value));
   pwm.setPWM(SERVO_THROTTLE,0,angleToPulse(value));
 }
 
@@ -115,6 +115,7 @@ void sprinklers(int status, int source){
   hwBusy = true;
   if(preferences.getUInt(SPRINKLERS_ENABLED, 1)==0){
     sprinklerLine = "Sprinklers DISABLED";
+    updateSprinklerStatusBT("DISABLED");
     status = LOW;
     return;
   }
@@ -122,6 +123,7 @@ void sprinklers(int status, int source){
   if(status==HIGH){
     digitalWrite(SPRINKLERS, status);
     sprinklerLine = "Sprinklers Opening..";
+    updateSprinklerStatusBT("OPENING");
     updateScreen = true;
     delay(MECH_VALVE_DELAY); // wait for mechanical valve opener to slowly open the main valve fully before starting the pump
 
@@ -134,16 +136,19 @@ void sprinklers(int status, int source){
       sprinklerLine = "Sprinklers OPEN M";
       debugLog("Turning sprinkler valve on manually");
     }
-
+    updateSprinklerStatusBT("OPEN");
+    updatePumpStatusBT("STARTING");
     bool pumpStatus = startPump(source!=2);
     if(pumpStatus == false){
       status = LOW;
       debugLog("Turning sprinkler valve off");
+      updateSprinklerStatusBT("CLOSING");
       digitalWrite(SPRINKLERS, status);      
       sprinklerLine = "Sprinklers Closing..";
       updateScreen = true;
       delay(MECH_VALVE_DELAY);
       sprinklerLine = "Sprnklers CLOSED";
+      updateSprinklerStatusBT("CLOSED");
       updateScreen = true;
     }
   }else{
@@ -153,6 +158,7 @@ void sprinklers(int status, int source){
       debugLog("Turning sprinkler valve off");
       digitalWrite(SPRINKLERS, status);
       sprinklerLine = "Sprinklers Closing..";
+      updateSprinklerStatusBT("CLOSING");
       updateScreen = true;
       delay(MECH_VALVE_DELAY);
       
@@ -164,11 +170,13 @@ void sprinklers(int status, int source){
         sprinklerLine = "Sprinklers OPEN M";
         debugLog("Turning sprinkler valve off manually");
       }
+      updateSprinklerStatusBT("CLOSED");
       updateScreen = true;
     }else{
       // turn sprinkler off as the pump failed to stop
       digitalWrite(SPRINKLERS, LOW);
       debugLog("Turning sprinkler valve off due to pump stop failure");
+      updateSprinklerStatusBT("CLOSED");
     }
   }
   hwBusy = false;
@@ -187,6 +195,7 @@ bool startPump(bool retry){
     starterMotor(LOW);
     ignition(LOW);
     updateScreen = true;
+    updatePumpStatusBT("DISABLED");
     return false;
   }
 
@@ -197,6 +206,7 @@ bool startPump(bool retry){
   int retries = retry?preferences.getUInt(STARTER_RETRY, 3):1;
   for(int i=0;i<retries;i++){
     debugLog("Pump start attempt "+String(i+1)+" of "+String(retries));
+    updatePumpStatusBT("START "+String(i+1));
     pumpLine = "Decomp On";
     decompression(HIGH);
     updateScreen = true;
@@ -215,23 +225,27 @@ bool startPump(bool retry){
 
     delay(preferences.getUInt(CRANK_TIME, 3)*1000);
     starterMotor(LOW);
+    updatePumpStatusBT("SENSING");
     delay(preferences.getUInt(PUMP_SENSE_DELAY, 3)*1000);
     if(isPumpStarted()){
       throttle(preferences.getUInt(THROTTLE_RUN,120));
       pumpLine = "Pump ON";
       updateScreen = true;
+      updatePumpStatusBT("ON");
       break;
     }else{
       throttle(preferences.getUInt(THROTTLE_STOP,0));
       delay(3000);
       delay(preferences.getUInt(PUMP_RETRY_DELAY,5)*1000);
       pumpLine = "Pump RETRY";
+      updatePumpStatusBT("RETRY");
       updateScreen = true;
     }
   }
   if(isPumpStarted()==false){
     pumpLine = "Pump FAILURE";
     updateScreen = true;
+    updatePumpStatusBT("FAILED");
     return false;
   }
 
@@ -241,6 +255,7 @@ bool startPump(bool retry){
 int stopPump(){
   int line = 1;
   pumpLine = "Stopping Pump";
+  updatePumpStatusBT("STOPPING");
   decompression(LOW);
   starterMotor(LOW);
   throttle(preferences.getUInt(THROTTLE_STOP,0));
@@ -251,9 +266,11 @@ int stopPump(){
   int returnStatus = 0;
   if(isPumpStarted()){
     pumpLine = "Pump STOP FAIL";
+    updatePumpStatusBT("STOP FAILED");
     returnStatus = 0;
   }else{
     pumpLine = "Pump OFF";
+    updatePumpStatusBT("OFF");
     returnStatus = 1;
   }
   updateScreen = true;
@@ -280,10 +297,23 @@ void checkWaterLevel(){
     updateScreen = true;
   }  
   if(isBTConnected()){
+    // Serial.println("Set BT Level "+lvl+ " " +btLastLevel+ " "+ String((millis()-lastBtUpdate)>5000));
     String btLvl = String("LEVEL ")+lvl;
-    if(btLvl.equals(btLastLevel)==false || (millis()-lastBtUpdate)>5000){
+    if(btLvl.equals(btLastLevel)==false || (millis()-lastBtUpdateLvl)>5000){
       writeBTStatus(btLvl);
+      lastBtUpdateLvl = millis();
       btLastLevel = btLvl;
+    }
+  }
+}
+
+void updateSprinklerStatusBT(String status){
+  if(isBTConnected()){
+    String btSpr = String("SPRINKLERS ")+status;
+    if(btSpr.equals(btLastSprinklers)==false || (millis()-lastBtUpdateSpr)>5000){
+      writeBTStatus(btSpr);
+      lastBtUpdateSpr = millis();
+      btLastSprinklers = btSpr;
     }
   }
 }
@@ -298,11 +328,16 @@ void checkSprinklers() {
     updateScreen = true;
     lastSprinklers = sprinklerLine;
   }
+  updateSprinklerStatusBT(String((areSprinklersOn()?"OPEN":"CLOSED")));
+}
+
+void updatePumpStatusBT(String status ){
   if(isBTConnected()){
-    String btSpr = String("SPRINKLERS ")+String((areSprinklersOn()?"ON":"OFF"));
-    if(btSpr.equals(btLastSprinklers)==false || (millis()-lastBtUpdate)>5000){
-      writeBTStatus(btSpr);
-      btLastSprinklers = btSpr;
+    String btPmp = String("PUMP ")+status;
+    if(btPmp.equals(btLastPump)==false || (millis()-lastBtUpdatePmp)>5000){
+      writeBTStatus(btPmp);
+      lastBtUpdatePmp = millis();
+      btLastPump = btPmp;
     }
   }
 }
@@ -317,13 +352,7 @@ void checkPump() {
     updateScreen = true;
     lastPump = pumpLine;
   }
-  if(isBTConnected()){
-    String btPmp = String("PUMP ")+String((isPumpStarted())?"ON":"OFF");
-    if(btPmp.equals(btLastPump)==false || (millis()-lastBtUpdate)>5000){
-      writeBTStatus(btPmp);
-      btLastPump = btPmp;
-    }
-  }
+  updatePumpStatusBT(String((isPumpStarted())?"ON":"OFF"));
 }
 
 void checkInletValve(){
@@ -338,8 +367,9 @@ void checkInletValve(){
   }
   if(isBTConnected()){
     String btInl = String("INLET ")+String((isInletValveOpen())?"OPEN":"CLOSED");
-    if(btInl.equals(btLastInlet)==false || (millis()-lastBtUpdate)>5000){
+    if(btInl.equals(btLastInlet)==false || (millis()-lastBtUpdateInl)>5000){
       writeBTStatus(btInl);
+      lastBtUpdateInl = millis();
       btLastInlet = btInl;
     }
   }

@@ -1,5 +1,3 @@
-#include <Base64.h>
-
 #define SPRINKLERS_ON 101
 #define SPRINKLERS_OFF 102
 #define INLET_OPEN 103
@@ -13,11 +11,14 @@ BLECharacteristic *pCommandCharacteristic = NULL;
 
 class BTServerCallbacks : public BLEServerCallbacks {
   void onConnect(BLEServer *pServer) {
+    Serial.println("BLE App connected");
     deviceConnected = true;
   };
 
   void onDisconnect(BLEServer *pServer) {
+    Serial.println("BLE App disconnected");
     deviceConnected = false;
+    pServer->startAdvertising();
   }
 };
 
@@ -60,6 +61,7 @@ class CommandCallback : public BLECharacteristicCallbacks {
 
 void bleSetup(){
   BLEDevice::init(BT_DEVICE_NAME);
+  BLEDevice::setMTU(128);
   BLEServer *pServer = BLEDevice::createServer();
   pServer->setCallbacks(new BTServerCallbacks());
 
@@ -88,22 +90,16 @@ bool isBTConnected(){
 }
 
 void writeBTStatus(String status){
-  lastBtUpdate = millis();
   if(pStatusCharacteristic != NULL){
     pStatusCharacteristic->setValue(status);
+    pStatusCharacteristic->notify();
   }
 }
 
 void writeBTLog(char* log){
   if(pLogCharacteristic != NULL){
-    pLogCharacteristic->setValue(b64encode(log));
+    pLogCharacteristic->setValue(log);
+    pLogCharacteristic->notify();
   }
 }
 
-String b64encode(char* input) {
-  int inputLen = strlen(input);
-  int encodedLen = Base64.encodedLength(inputLen);
-  char buffer[encodedLen+1];
-  Base64.encode(buffer, input, inputLen);
-  return String(buffer);
-}

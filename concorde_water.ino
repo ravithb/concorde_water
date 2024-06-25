@@ -80,7 +80,11 @@ bool hwBusy = false;
 int selectedActiveOption = -1;
 int selectedActiveOptParam = -1;
 bool runActiveOptionFlag = false;
-unsigned long lastBtUpdate = 0;
+
+unsigned long lastBtUpdateLvl = 0;
+unsigned long lastBtUpdateInl = 0;
+unsigned long lastBtUpdateSpr = 0;
+unsigned long lastBtUpdatePmp = 0;
 
 LiquidCrystal_PCF8574 lcd(0x27);
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(0x44);
