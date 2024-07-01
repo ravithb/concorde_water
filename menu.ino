@@ -313,7 +313,19 @@ void exitMenu(){
   displayStatus();
 }
 
-
+void previewServoPosition(int idx){
+  switch(idx){
+    case 13:
+    case 14:
+    case 15:
+      throttle(parameters[idx]);
+      break;
+    case 11:
+    case 12:
+      pwm.setPWM(SERVO_DECOMP, 0, angleToPulse(parameters[idx]));
+      break;
+  }
+}
 
 void menu(){
   // Serial.print("trigger ");
@@ -334,6 +346,7 @@ void menu(){
       if(parameters[currentScreen] > minMax[currentScreen][1]){
         parameters[currentScreen] = minMax[currentScreen][1];
       }
+      previewServoPosition(currentScreen);
       if(currentScreen > 1 && currentScreen < 16){
         saveParameter(currentScreen);
       }else{

@@ -1,0 +1,46 @@
+* Netlist created with www.circuit-diagram.org
+* Concorde Water
+R1 0 1 10000
+R2 2 1 10000
+C3 3 1 0.0001
+V4 4 12
+D5 4 3
+D6 5 1
+'phototransnpn2 col:6 emit:1 t=NPNPhototransistor2
+R7 7 8 4700
+R8 3 9 4700
+R9 9 1 4700
+R10 7 5 270
+R11 8 10 3300
+R12 10 1 5000
+'opamp inv:9 ninv:8 out:5 showSupply=False
+'microcontroller #6:1 #0:11 #1:12 #4:13 sz=8 p0=Vcc p1= p2=SCL p3= p4=SDA p5= p6=GND p7= p8= p9= p10= p11= p12= p13= p14= p15= p16= p17= p18= p19= p20= p21= p22= p23= p24= p25= p26= p27=
+R13 11 12 3300
+R14 11 13 3300
+R15 0 ? 6800
+R16 2 ? 6800
+R17 14 0 100000
+R18 15 2 100000
+R19 17 16 100000
+R20 11 17 10000
+D21 18 7
+D22 19 20
+D23 21 22
+R24 22 23 270
+R25 20 24 270
+D26 23 25
+D27 24 26
+C28 17 1 0.00047
+'microcontroller #3:27 #5:28 #7:17 #6:1 #2:11 sz=8 p0= p1=VCC p2= p3=DT p4= p5=CLK p6=GND p7=SW p8= p9= p10= p11= p12= p13= p14= p15= p16= p17= p18= p19= p20= p21= p22= p23= p24= p25= p26= p27=
+C29 29 1 0.00047
+'microcontroller #4:13 #1:12 #0:11 #6:1 sz=8 p0=Vcc p1= p2=SCL p3= p4=SDA p5= p6=GND p7= p8= p9= p10= p11= p12= p13= p14= p15= p16= p17= p18= p19= p20= p21= p22= p23= p24= p25= p26= p27=
+'phototransnpn2 emit:1 col:30 t=NPNPhototransistor2
+'phototransnpn2 col:31 emit:1 t=NPNPhototransistor2
+D30 32 1
+D31 33 1
+D32 34 1
+D33 35 1
+V34 18 1 12
+C35 7 1 0.001
+'Voltage Regulator c:29 b:1 a:7 reference=IC1 part=7805 labela=Vin labelb=Gnd labelc=Vout pina=3 pinb=1 pinc=2
+'microcontroller pin9:27 pin13:28 pin11:6 pin7:16 pin36:11 pin24:31 pin22:30 pin10:13 pin4:12 pin18:15 pin16:14 pin14:32 pin12:33 pin20:34 pin2:35 pin35:29 pin33:1 header=ESP32 pins=36 size=Small p1=EN label1= p2=GPIO23 label2=VSPI MOSI p3=GPIO36 label3=ADC1 CH0 p4=GPIO22 label4=I2C SCL p5=GPIO39 label5=ADC1 CH3 p6=GPIO1 label6=UART 0 TX p7=GPIO34 label7=ADC1 CH6 p8=GPIO3 label8=UART 0 RX p9=GPIO35 label9=ADC1 CH7 p10=GPIO21 label10=I2C SDA p11=GPIO32 label11=ADC1 CH4 p12=GPIO19 label12=VSPI MISO p13=GPIO33 label13=ADC1 CH5 p14=GPIO18 label14=VSPI CLK p15=GPIO25 label15=ADC2 CH8 p16=GPIO5 label16=VSPI CS0 p17=GPIO26 label17=ADC2 CH9 p18=GPIO17 label18=UART 2 TX p19=GPIO27 label19=ADC2 CH7 p20=GPIO16 label20=UART 2 RX p21=GPIO14 label21=ADC2 CH6 p22=GPIO4 label22=ADC2 CH0 p23=GPIO12 label23=ADC2 CH5 p24=GPIO2 label24=ADC2 CH2 p25=GPIO13 label25=ADC2 CH4 p26=GPIO15 label26=ADC2 CH3 p27=GPIO9 label27=SHD/SD2 p28=GPIO0 label28=ADC2 CH1 p29=GPIO10 label29=SWP/SD3 p30=GPIO8 label30=SDI/SD1 p31=GPIO11 label31=CSC/CMD p32=GPIO7 label32=SDO/SD0 p33=GND label33= p34=GPIO6 label34=SCK/CLK p35=VIN label35= p36=3V3 label36= p37= label37= p38= label38= p39= label39= p40= label40=
