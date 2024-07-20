@@ -11,8 +11,9 @@ String btLastLevel = "";
 String btLastPump = "";
 String btLastInlet = "";
 
-bool isPumpStarted(){
-  return (digitalRead(PUMP_SENSE)==HIGH);
+
+bool isPumpRunning(){
+  return (digitalRead(PUMP_SENSE)==LOW);
 }
 
 void displayStatus(){
@@ -41,9 +42,20 @@ void inletValve(int status, int source) {
     status = LOW;
     return;
   }
-
+  Serial.print("Status ");
+  Serial.println(status);
+  Serial.println(!status);
+  // Power the solenoid valve for 500 ms
+  digitalWrite(IN1, status);
+  digitalWrite(IN2, !status);
+  digitalWrite(ENA, HIGH);
+  delay(SOLND_PWR_TIME);
+  digitalWrite(ENA, LOW);
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  
   digitalWrite(INLET_VALVE, status);
-  if(status==HIGH){    
+  if(status==HIGH){  
     
     inletLine = "Inlet OPEN";
     if(source==1){
@@ -121,6 +133,9 @@ void sprinklers(int status, int source){
   }
 
   if(status==HIGH){
+    if(pumpFailureStatus > 0){
+      return;
+    }
     digitalWrite(SPRINKLERS, status);
     sprinklerLine = "Sprinklers Opening..";
     updateSprinklerStatusBT("OPENING");
@@ -150,7 +165,11 @@ void sprinklers(int status, int source){
       sprinklerLine = "Sprnklers CLOSED";
       updateSprinklerStatusBT("CLOSED");
       updateScreen = true;
+      pumpFailureStatus = 1;
+    }else{
+      throttle(preferences.getUInt(THROTTLE_RUN,120));
     }
+    
   }else{
     status = LOW;
     int pumpStatus = stopPump();
@@ -172,11 +191,6 @@ void sprinklers(int status, int source){
       }
       updateSprinklerStatusBT("CLOSED");
       updateScreen = true;
-    }else{
-      // turn sprinkler off as the pump failed to stop
-      digitalWrite(SPRINKLERS, LOW);
-      debugLog("Turning sprinkler valve off due to pump stop failure");
-      updateSprinklerStatusBT("CLOSED");
     }
   }
   hwBusy = false;
@@ -187,6 +201,10 @@ bool areSprinklersOn(){
 }
 
 bool startPump(bool retry){
+  if(isPumpRunning()){
+    debugLog("Pump already started");
+    return true;
+  }
   debugLog("Starting pump with "+String(retry?" retries":"no retries"));
 
   if(preferences.getUInt(PUMP_ENABLED, 1)==0){
@@ -227,13 +245,15 @@ bool startPump(bool retry){
     starterMotor(LOW);
     updatePumpStatusBT("SENSING");
     delay(preferences.getUInt(PUMP_SENSE_DELAY, 3)*1000);
-    if(isPumpStarted()){
+    if(isPumpRunning()){
+      debugLog("Pump runing signal detected");
       throttle(preferences.getUInt(THROTTLE_RUN,120));
       pumpLine = "Pump ON";
       updateScreen = true;
       updatePumpStatusBT("ON");
       break;
     }else{
+      debugLog("Pump running signal not detected");
       throttle(preferences.getUInt(THROTTLE_STOP,0));
       delay(3000);
       delay(preferences.getUInt(PUMP_RETRY_DELAY,5)*1000);
@@ -242,10 +262,10 @@ bool startPump(bool retry){
       updateScreen = true;
     }
   }
-  if(isPumpStarted()==false){
-    pumpLine = "Pump FAILURE";
+  if(isPumpRunning()==false){
+    pumpLine = "Pump Start Failed";
     updateScreen = true;
-    updatePumpStatusBT("FAILED");
+    updatePumpStatusBT("START FAILED");
     return false;
   }
 
@@ -253,6 +273,9 @@ bool startPump(bool retry){
 }
 
 int stopPump(){
+  if(isPumpRunning()==false){
+    return 2;
+  }
   int line = 1;
   pumpLine = "Stopping Pump";
   updatePumpStatusBT("STOPPING");
@@ -262,19 +285,31 @@ int stopPump(){
   delay(3000);
   ignition(LOW);
   updateScreen = true;
-  delay(3000);
+  delay(5000);
   int returnStatus = 0;
-  if(isPumpStarted()){
+  if(isPumpRunning()){
     pumpLine = "Pump STOP FAIL";
     updatePumpStatusBT("STOP FAILED");
     returnStatus = 0;
   }else{
     pumpLine = "Pump OFF";
     updatePumpStatusBT("OFF");
-    returnStatus = 1;
+    returnStatus = 1;    
   }
   updateScreen = true;
   return returnStatus;
+}
+
+void handlePumpFailure(){
+  debugLog("Closing throttle due to failure");
+  decompression(LOW);
+  starterMotor(LOW);
+  throttle(preferences.getUInt(THROTTLE_STOP,0));
+  ignition(LOW);
+
+  debugLog("Closing sprinklers.");
+  digitalWrite(SPRINKLERS, LOW);
+
 }
 
 // check periodically and turn the pump off if tank is full
@@ -347,12 +382,27 @@ void checkPump() {
     pumpLine = "Pump DISABLED";
     return;
   }
-  pumpLine = isPumpStarted()?"Pump ON":"Pump OFF";
-  if(lastPump.equals(pumpLine)==false){
+  if(pumpFailureStatus > 0) {
+    switch (pumpFailureStatus) {
+      case 1:
+        pumpLine = "Pump Start Failed";
+        updatePumpStatusBT(String("START FAILED"));
+        break;
+      case 2:
+        pumpLine = "Pump Run Failed";
+        updatePumpStatusBT(String("RUN FAILED"));
+        break;
+    }
     updateScreen = true;
-    lastPump = pumpLine;
+    
+  }else{
+    pumpLine = isPumpRunning()?"Pump ON":"Pump OFF";
+    if(lastPump.equals(pumpLine)==false){
+      updateScreen = true;
+      lastPump = pumpLine;
+    }
+    updatePumpStatusBT(String((isPumpRunning())?"ON":"OFF"));
   }
-  updatePumpStatusBT(String((isPumpStarted())?"ON":"OFF"));
 }
 
 void checkInletValve(){

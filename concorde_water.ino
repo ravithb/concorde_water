@@ -30,6 +30,9 @@
 #define CLICKS_PER_STEP 4
 #define SERVO_DECOMP 2
 #define SERVO_THROTTLE 3
+#define ENA 13
+#define IN1 12
+#define IN2 14
 
 #define TANK_LOW 64
 #define TANK_FULL 65
@@ -55,6 +58,8 @@
 #define USMAX  2400 // This is the rounded 'maximum' microsecond length based on the maximum pulse of 600
 #define SERVO_FREQ 60 // Analog servos run at ~50 Hz updates
 #define MECH_VALVE_DELAY 32000 // Time taken for the mechanical valve to open or close fully in milliseconds
+// #define MECH_VALVE_DELAY 100 // Time taken for the mechanical valve to open or close fully in milliseconds
+#define SOLND_PWR_TIME 500 // Time to power the solenoid through the L298
 
 #define BLE_SERVICE_UUID                  "c0ae3000-da8a-45c6-a5c5-fbad540c2bf3"
 #define BLE_CHARACTEREISTIC_STATUS_UUID   "c0ae3001-da8a-45c6-a5c5-fbad540c2bf3"
@@ -80,6 +85,7 @@ bool hwBusy = false;
 int selectedActiveOption = -1;
 int selectedActiveOptParam = -1;
 bool runActiveOptionFlag = false;
+int pumpFailureStatus = 0; // 1 = Start Failure, 2 = Running Failure
 
 unsigned long lastBtUpdateLvl = 0;
 unsigned long lastBtUpdateInl = 0;
@@ -128,6 +134,9 @@ void setup() {
   pinMode(PUMP_SENSE, INPUT_PULLUP);
   pinMode(LED, OUTPUT);
   pinMode(ROT_SW, INPUT);
+  pinMode(ENA, OUTPUT);
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
 
   attachInterrupt(digitalPinToInterrupt(WATER_LOW), onWaterLow, CHANGE);
   attachInterrupt(digitalPinToInterrupt(WATER_HIGH), onWaterFullChange, CHANGE);
@@ -148,6 +157,9 @@ void setup() {
   digitalWrite(IGNITION, LOW);
   digitalWrite(SPRINKLERS, LOW);
   digitalWrite(STARTER, LOW);
+  digitalWrite(ENA, LOW);
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
 
   enc.begin(ROT_CLK, ROT_DT, CLICKS_PER_STEP);
 
@@ -169,6 +181,9 @@ void setup() {
 
   pwm.begin();
   pwm.setPWMFreq(SERVO_FREQ);  // Analog servos run at ~50 Hz updates
+  
+  throttle(preferences.getUInt(THROTTLE_STOP,0));
+  decompression(LOW);
 
   xTaskCreatePinnedToCore(
                   hwLoop,   /* Task function. */
@@ -179,6 +194,7 @@ void setup() {
                   &hwLoopTask,      /* Task handle to keep track of created task */
                   0);          /* pin task to core 0 */
   delay(500); 
+
 
   // 
   debugLog("Setup complete");
@@ -216,7 +232,10 @@ void loop() {
 // hardware control loop
 void hwLoop(void* pvParameters) {
   while(true){
+    // Serial.print("Manual filling ");
+    // Serial.println(manualFilling);
     if(manualFilling <= 0){
+
       if (currentWaterLevel == 0 && isInletValveOpen()==false) {
         inletValve(HIGH, 0);
         lastInletTriggerSource = 1;
@@ -245,11 +264,10 @@ void hwLoop(void* pvParameters) {
         lastInletTriggerSource = 3;
       }
     }
-    if (sprinklerTimerStatus == LOW && areSprinklersOn()==false) {
-      sprinklers(HIGH, 1);
-    } else if (sprinklerTimerStatus == HIGH && areSprinklersOn()) {
-      sprinklers(LOW, 1);
-    }
+    
+
+
+  
     if(isActiveOptionSet()) {
       // Serial.println("if isActiveOptionSet");
       // Serial.println(selectedActiveOption);
@@ -257,20 +275,35 @@ void hwLoop(void* pvParameters) {
       resetSelectedActiveOption();
       if (manualWatering == 2 && areSprinklersOn()==false) {
         sprinklers(HIGH, 2);
-        manualWatering = 0; // reset the action
+        // manualWatering = 0; // reset the action
       } else if (manualWatering == 1 && areSprinklersOn()) {
         sprinklers(LOW, 2);
         manualWatering = 0; // reset the action
       }
 
-      if(isPumpStarted() && pumpTest == 1){
+      if(isPumpRunning() && pumpTest == 1){
         stopPump();
         pumpTest = 0;
-      }else if(isPumpStarted()==false && pumpTest==2){
+      }else if(isPumpRunning()==false && pumpTest==2){
         startPump(false);
         pumpTest = 0;
       }
+    }else if(manualWatering==0 && pumpFailureStatus == 0){
+      if (sprinklerTimerStatus == LOW && areSprinklersOn()==false) {
+        debugLog("Sprinkler ON detected");
+        sprinklers(HIGH, 1);
+      } else if (sprinklerTimerStatus == HIGH && areSprinklersOn()) {
+        debugLog("Sprinkler OFF detected");
+        sprinklers(LOW, 1);
+      }
     }
+
+    if(areSprinklersOn() && isPumpRunning()==false){
+      debugLog("Pump failure detected.");
+      pumpFailureStatus = 2;
+      handlePumpFailure();      
+    }
+
     
     delay(100);
   }

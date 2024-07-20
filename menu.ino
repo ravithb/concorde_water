@@ -77,9 +77,9 @@ void loadParameterValues(){
     //Decompresion Lever On Position
     parameters[12] = preferences.getUInt(DECOMP_LEVER_ON,120);
     //Thtottle Start Position
-    parameters[12] = preferences.getUInt(THROTTLE_START,90);
+    parameters[13] = preferences.getUInt(THROTTLE_START,90);
     //Thtottle Run Position
-    parameters[13] = preferences.getUInt(THROTTLE_RUN,120);
+    parameters[14] = preferences.getUInt(THROTTLE_RUN,120);
     //Thtottle Stop Position
     parameters[15] = preferences.getUInt(THROTTLE_STOP,0);
 }
