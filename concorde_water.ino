@@ -46,7 +46,7 @@
 #define CRANK_TIME "crankTime"
 #define PUMP_SENSE_DELAY "pumpSenseDelay"
 #define PUMP_RETRY_DELAY "pumpRetryDelay"
-#define DECOMP_LEVER_DELAY "decomprLeverDelay"
+#define EX_CRANK_TIME "extraCrankTime"
 #define DECOMP_LEVER_OFF "decompLeverOff"
 #define DECOMP_LEVER_ON "decompLeverOn"
 #define THROTTLE_STOP "throttleStop"

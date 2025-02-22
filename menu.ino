@@ -19,11 +19,11 @@ String screens[numOfScreens][3] = {
   {"Irrigation","", TYPE_EN_DIS},
   {"Pump","", TYPE_EN_DIS},
   {"Starter Retry", "Times", TYPE_INT}, 
-  {"Starter Delay", "Seconds", TYPE_INT}, 
-  {"Crank Time", "Seconds", TYPE_INT}, 
+  {"Starter Delay", "m.Secs", TYPE_INT}, 
+  {"Crank Time", "m.Secs", TYPE_INT}, 
   {"Pump Sense Delay", "Seconds", TYPE_INT},
   {"Retry Delay","Seconds", TYPE_INT},
-  {"Dcomp Delay","Seconds", TYPE_INT},
+  {"Ex Crank Time","m.Secs", TYPE_INT},
   {"Dcomp Off Pos", "Degrees", TYPE_INT},
   {"Dcomp On Pos", "Degrees", TYPE_INT}, 
   {"Thr Start Pos", "Degrees", TYPE_INT},  
@@ -32,24 +32,24 @@ String screens[numOfScreens][3] = {
   {"Test Pump", "", TYPE_ON_OFF_EXIT }
 
 };
-int minMax[numOfScreens][2] = {
-  {0,2},//Manual Watering
-  {0,2},//Manual Filling
-  {0,1},//Inlet
-  {0,1},//Irrigation
-  {0,1},//Pump
-  {3,10},//Starter Retry
-  {2,10},//Starter Delay
-  {1,5},//Crank Time
-  {1,5},//Pump Sense Dealay
-  {2,10},//Retry Delay
-  {1,3},//Decompression Leaver Delay
-  {0,120},//Decomp Lever Off Position
-  {0,120},//Decomp Lever On Position
-  {0,120},//Thtottle Start Position
-  {0,120},//Thtottle Run Position
-  {0,120},//Thtottle Off Position
-  {0,2}, // Test Pump
+int minMax[numOfScreens][3] = {
+  {0,2,1},//Manual Watering
+  {0,2,1},//Manual Filling
+  {0,1,1},//Inlet
+  {0,1,1},//Irrigation
+  {0,1,1},//Pump
+  {3,10,1},//Starter Retry
+  {100,10000,100},//Starter Delay
+  {100,5000,100},//Crank Time
+  {1,5,1},//Pump Sense Delay
+  {2,10,1},//Retry Delay
+  {0,2000,100},//Extra crank time
+  {0,120,1},//Decomp Lever Off Position
+  {0,120,1},//Decomp Lever On Position
+  {0,120,1},//Thtottle Start Position
+  {0,120,1},//Thtottle Run Position
+  {0,120,1},//Thtottle Off Position
+  {0,2,1}, // Test Pump
 };
 int parameters[numOfScreens];
 
@@ -63,15 +63,18 @@ void loadParameterValues(){
     //Starter Retry
     parameters[5] = preferences.getUInt(STARTER_RETRY, 3);
     //Starteer Delay
+    //preferences.putUInt(STARTER_DELAY, 0);
     parameters[6] = preferences.getUInt(STARTER_DELAY, 2);
     //Crank Time
+    //preferences.putUInt(CRANK_TIME, 0);
     parameters[7] = preferences.getUInt(CRANK_TIME, 3);
     //Pumb Sense Delay
     parameters[8] = preferences.getUInt(PUMP_SENSE_DELAY, 1);    
     //Retry Delay
     parameters[9] = preferences.getUInt(PUMP_RETRY_DELAY,5);
     //Decompression Lever Delay
-    parameters[10] = preferences.getUInt(DECOMP_LEVER_DELAY,1);
+    //preferences.putUInt(CRANK_TIME, 0);
+    parameters[10] = preferences.getUInt(EX_CRANK_TIME,1);
     //Decompresion Lever Off Position
     parameters[11] = preferences.getUInt(DECOMP_LEVER_OFF,0);
     //Decompresion Lever On Position
@@ -97,13 +100,13 @@ int getCurrentVal(int screenIdx){
     case 6: //Starteer Delay
       return preferences.getUInt(STARTER_DELAY, 2);
     case 7: //Crank Time
-      return preferences.getUInt(CRANK_TIME, 3);
+      return preferences.getUInt(CRANK_TIME, 3000);
     case 8: //Pump Sense Delay
       return preferences.getUInt(PUMP_SENSE_DELAY, 1);
     case 9: //Retry Delay
       return preferences.getUInt(PUMP_RETRY_DELAY,5);
     case 10: //Decompression Lever Delay
-      return preferences.getUInt(DECOMP_LEVER_DELAY,1);
+      return preferences.getUInt(EX_CRANK_TIME,0);
     case 11: //Decompresion Lever Off Position
       return preferences.getUInt(DECOMP_LEVER_OFF,0);
     case 12: //Decompresion Lever On Position
@@ -232,6 +235,7 @@ void saveParameter(int screenIdx){
     case 6: //Starter Delay
       Serial.print("Saving Starter Delay ");
       Serial.println(parameters[screenIdx]);
+      //preferences.putUInt(STARTER_DELAY,0);
       preferences.putUInt(STARTER_DELAY, parameters[screenIdx]);
       Serial.print("Read back ");
       Serial.println(preferences.getUInt(STARTER_DELAY,99));
@@ -239,6 +243,7 @@ void saveParameter(int screenIdx){
     case 7: //Crank Time
       Serial.print("Saving Crank Time ");
       Serial.println(parameters[screenIdx]);
+      //preferences.putUInt(CRANK_TIME,0);
       preferences.putUInt(CRANK_TIME, parameters[screenIdx]);
       Serial.print("Read back ");
       Serial.println(preferences.getUInt(CRANK_TIME,99));
@@ -260,9 +265,10 @@ void saveParameter(int screenIdx){
     case 10: //Decompression Lever Delay
       Serial.print("Saving Decompression Lever Delay ");
       Serial.println(parameters[screenIdx]);
-      preferences.putUInt(DECOMP_LEVER_DELAY,parameters[screenIdx]);
+      //preferences.putUInt(EX_CRANK_TIME,0);
+      preferences.putUInt(EX_CRANK_TIME,parameters[screenIdx]);
       Serial.print("Read back ");
-      Serial.println(preferences.getUInt(DECOMP_LEVER_DELAY,1));
+      Serial.println(preferences.getUInt(EX_CRANK_TIME,1));
       break;
     case 11: //Decompresion Lever Off
       Serial.print("Saving Decompression Lever Off Position ");
@@ -334,9 +340,9 @@ void menu(){
   if (newPosition != oldPosition /* && newPosition % 2 == 0 */) {
     if(menuTriggeredTime != 0 && currentScreen != -1) {
       if(newPosition > oldPosition) {
-        parameters[currentScreen]++;
+        parameters[currentScreen]+=minMax[currentScreen][2];
       } else {
-        parameters[currentScreen]--;
+        parameters[currentScreen]-=minMax[currentScreen][2];
       }
       // Serial.print("Param ");
       // Serial.println(parameters[currentScreen]);

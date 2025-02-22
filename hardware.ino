@@ -191,6 +191,8 @@ void sprinklers(int status, int source){
       }
       updateSprinklerStatusBT("CLOSED");
       updateScreen = true;
+    }else{
+      updateScreen = true;
     }
   }
   hwBusy = false;
@@ -231,17 +233,17 @@ bool startPump(bool retry){
 
     throttle(preferences.getUInt(THROTTLE_START,90));
 
-    delay(preferences.getUInt(STARTER_DELAY, 2)*1000);
+    delay(preferences.getUInt(STARTER_DELAY, 2000));
     pumpLine = "Starting Pump";
     starterMotor(HIGH);
     updateScreen = true;
 
-    delay(preferences.getUInt(DECOMP_LEVER_DELAY,1)*1000);
+    delay(preferences.getUInt(CRANK_TIME,3000));
     pumpLine = "Decomp Off";
     decompression(LOW);
     updateScreen = true;
 
-    delay(preferences.getUInt(CRANK_TIME, 3)*1000);
+    delay(preferences.getUInt(EX_CRANK_TIME, 0));
     starterMotor(LOW);
     updatePumpStatusBT("SENSING");
     delay(preferences.getUInt(PUMP_SENSE_DELAY, 3)*1000);
@@ -274,8 +276,10 @@ bool startPump(bool retry){
 
 int stopPump(){
   if(isPumpRunning()==false){
+    debugLog("Stop pump. Pump not runing");
     return 2;
   }
+  debugLog("Stopping pump");
   int line = 1;
   pumpLine = "Stopping Pump";
   updatePumpStatusBT("STOPPING");
@@ -290,10 +294,12 @@ int stopPump(){
   if(isPumpRunning()){
     pumpLine = "Pump STOP FAIL";
     updatePumpStatusBT("STOP FAILED");
+    debugLog("Pump stop failed");
     returnStatus = 0;
   }else{
     pumpLine = "Pump OFF";
     updatePumpStatusBT("OFF");
+    debugLog("Pump stopped");
     returnStatus = 1;    
   }
   updateScreen = true;
@@ -301,6 +307,7 @@ int stopPump(){
 }
 
 void handlePumpFailure(){
+  debugLog("Handle pump failure");
   debugLog("Closing throttle due to failure");
   decompression(LOW);
   starterMotor(LOW);
